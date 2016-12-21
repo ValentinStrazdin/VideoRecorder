@@ -9,6 +9,7 @@
 
 #define TOTAL_RECORDING_TIME    60*20	// максимальное время видеозаписи в секундах
 #define FRAMES_PER_SECOND       30		// количество кадров в секунду
+#define PLAYER_RATE             1.f     // скорость воспроизведения видео (от 0.0 до 1.0)
 #define FREE_DISK_SPACE_LIMIT   1024 * 1024	// минимальный размер свободного места (байт)
 #define MAX_VIDEO_FILE_SIZE     160 * 1024 * 1024	// максимальный размер видеофайла (байт)
 #define CAPTURE_SESSION_PRESET  AVCaptureSessionPreset352x288 //качество видеозаписи
@@ -95,7 +96,55 @@
         [CaptureSession setSessionPreset:CAPTURE_SESSION_PRESET];
     }
     [self cameraSetOutputProperties];
+    if (FRAMES_PER_SECOND > 30) {
+        [self switchFormatWithDesiredFPS:FRAMES_PER_SECOND];
+    }
 }
+
+// Здесь мы ищем видеоформат наилучшего качества с поддержкой заданного количества кадров в секунду
+- (void)switchFormatWithDesiredFPS:(CGFloat)desiredFPS
+{
+    BOOL isRunning = CaptureSession.isRunning;
+    
+    if (isRunning)  [CaptureSession stopRunning];
+    
+    AVCaptureDevice *videoDevice = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+    AVCaptureDeviceFormat *selectedFormat = nil;
+    int32_t maxWidth = 0;
+    AVFrameRateRange *frameRateRange = nil;
+    
+    for (AVCaptureDeviceFormat *format in [videoDevice formats]) {
+        
+        for (AVFrameRateRange *range in format.videoSupportedFrameRateRanges) {
+            
+            CMFormatDescriptionRef desc = format.formatDescription;
+            CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions(desc);
+            int32_t width = dimensions.width;
+            
+            if (range.minFrameRate <= desiredFPS && desiredFPS <= range.maxFrameRate && width >= maxWidth) {
+                
+                selectedFormat = format;
+                frameRateRange = range;
+                maxWidth = width;
+            }
+        }
+    }
+    
+    if (selectedFormat) {
+        
+        if ([videoDevice lockForConfiguration:nil]) {
+            
+            NSLog(@"selected format:%@", selectedFormat);
+            videoDevice.activeFormat = selectedFormat;
+            videoDevice.activeVideoMinFrameDuration = CMTimeMake(1, (int32_t)desiredFPS);
+            videoDevice.activeVideoMaxFrameDuration = CMTimeMake(1, (int32_t)desiredFPS);
+            [videoDevice unlockForConfiguration];
+        }
+    }
+    
+    if (isRunning) [CaptureSession startRunning];
+}
+
 
 - (BOOL)prefersStatusBarHidden {
     return YES;
@@ -218,7 +267,8 @@
         [self presentViewController:controller animated:YES completion:nil];
         controller.player = player;
         controller.allowsPictureInPicturePlayback = NO;
-        [player play];
+        // здесь мы начинаем воспроизведение видео с заданной скоростью (1 - нормальная скорость, 0.5 - замедленное воспроизведение)
+        [player setRate:PLAYER_RATE];
     }
 }
 
