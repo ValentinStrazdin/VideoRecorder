@@ -8,7 +8,8 @@
 #import "VideoRecorderController.h"
 
 #define TOTAL_RECORDING_TIME    60*20	// максимальное время видеозаписи в секундах
-#define FRAMES_PER_SECOND       30		// количество кадров в секунду
+#define FRAMES_PER_SECOND_INPUT 240		// количество кадров в секунду съемки
+#define FRAMES_PER_SECOND_OUTPUT 240		// количество кадров в секунду видео файл
 #define PLAYER_RATE             1.f     // скорость воспроизведения видео (от 0.0 до 1.0)
 #define FREE_DISK_SPACE_LIMIT   1024 * 1024	// минимальный размер свободного места (байт)
 #define MAX_VIDEO_FILE_SIZE     160 * 1024 * 1024	// максимальный размер видеофайла (байт)
@@ -85,20 +86,18 @@
     [self.view sendSubviewToBack:CameraView];
     [[CameraView layer] addSublayer:self.PreviewLayer];
     MovieFileOutput = [[AVCaptureMovieFileOutput alloc] init];
-    CMTime maxDuration = CMTimeMakeWithSeconds(TOTAL_RECORDING_TIME, FRAMES_PER_SECOND);
+    CMTime maxDuration = CMTimeMakeWithSeconds(TOTAL_RECORDING_TIME, FRAMES_PER_SECOND_OUTPUT);
     MovieFileOutput.maxRecordedDuration = maxDuration;
     MovieFileOutput.maxRecordedFileSize = MAX_VIDEO_FILE_SIZE;
     MovieFileOutput.minFreeDiskSpaceLimit = FREE_DISK_SPACE_LIMIT;
     if ([CaptureSession canAddOutput:MovieFileOutput]) {
         [CaptureSession addOutput:MovieFileOutput];
     }
-    if ([CaptureSession canSetSessionPreset:CAPTURE_SESSION_PRESET]) {
-        [CaptureSession setSessionPreset:CAPTURE_SESSION_PRESET];
-    }
+//    if ([CaptureSession canSetSessionPreset:CAPTURE_SESSION_PRESET]) {
+//        [CaptureSession setSessionPreset:CAPTURE_SESSION_PRESET];
+//    }
     [self cameraSetOutputProperties];
-    if (FRAMES_PER_SECOND > 30) {
-        [self switchFormatWithDesiredFPS:FRAMES_PER_SECOND];
-    }
+    [self switchFormatWithDesiredFPS:FRAMES_PER_SECOND_INPUT];
 }
 
 // Здесь мы ищем видеоформат наилучшего качества с поддержкой заданного количества кадров в секунду
@@ -288,6 +287,7 @@
     
     // Начинаем запись в файл видеозаписи
     NSURL *outputURL = [[NSURL alloc] initFileURLWithPath:self.outputPath];
+    [self deleteVideoFile];
     [MovieFileOutput startRecordingToOutputFileURL:outputURL recordingDelegate:self];
 }
 
